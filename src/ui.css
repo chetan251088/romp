@@ -185,3 +185,13 @@ th { color: var(--ink-dim); font-weight: 500; font-size: 1rem; } td.lead, .lead 
 .presence span:empty { display: none; }
 .presence.small { opacity: 0.65; }
 .presence.small canvas { width: 5.6rem; height: 3.15rem; }
+
+/* ---- Calibration Assistant & Warm-up Routine ---- */
+.checklist { display: flex; flex-direction: column; gap: 0.8rem; font-size: 1.25rem; }
+.check-item { display: flex; align-items: center; gap: 0.9rem; padding: 0.6rem 1rem; border-radius: 1rem; background: rgba(255, 255, 255, 0.05); }
+.check-item.ok { background: rgba(74, 222, 128, 0.15); border: 1px solid rgba(74, 222, 128, 0.4); color: var(--lime); }
+.check-item .badge { width: 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center; font-size: 1.1rem; border: 0.15rem solid currentColor; }
+.routine-box { background: linear-gradient(135deg, rgba(239, 68, 68, 0.18), rgba(245, 158, 11, 0.22)); border: 0.18rem solid var(--orange); border-radius: 1.5rem; padding: 1.2rem 1.6rem; display: flex; align-items: center; gap: 1.4rem; }
+.routine-box b { font-size: 1.4rem; color: var(--yellow); }
+.calib-canvas { width: 100%; max-width: 48rem; height: 27rem; border-radius: 1.5rem; background: rgba(0, 0, 0, 0.6); border: 2px solid var(--cyan); box-shadow: 0 0 2rem rgba(61, 225, 255, 0.2); }
+

@@ -5,6 +5,12 @@ import { DAY_GOAL, summary, type Session } from './stats.ts';
 // Score needed for 1, 2 and 3 stars at stage 1. Guesses until real scores come in — this table is the tuning knob.
 export const STARS: Record<string, [number, number, number]> = {
   slice: [40, 80, 130], run: [400, 900, 1500],
+  sprint: [300, 600, 1000], jackattack: [200, 500, 900], forge: [150, 350, 600],
+  lumberjack: [200, 450, 800], rocket: [300, 700, 1200],
+  pulse: [200, 500, 900], beat: [200, 450, 800], freeze: [150, 400, 700],
+  shapeup: [200, 500, 900],
+  jab: [200, 500, 900], goalie: [150, 350, 650], smash: [200, 500, 900],
+  wipe: [200, 450, 800], keepyuppy: [100, 300, 600], leaks: [150, 400, 750],
 };
 export const STAGES = 5;
 export const hardness = (stage: number) => 1 + (stage - 1) * 0.22; // games multiply speeds and spawn rates by this

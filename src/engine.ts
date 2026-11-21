@@ -437,6 +437,96 @@ const PLACES = {
     float disc = smoothstep(0.30, 0.295, length(p - vec2(0.0, 0.02))); c = mix(c, c * 1.5 + vec3(0.10, 0.05, 0.03), disc * 0.55);
     c += vec3(1.0, 0.55, 0.2) * (0.16 / (0.3 + 6.0 * dot(p - vec2(-0.8, 0.5), p - vec2(-0.8, 0.5))) + 0.16 / (0.3 + 6.0 * dot(p - vec2(0.8, 0.5), p - vec2(0.8, 0.5)))) * (0.9 + 0.1 * sin(t * 3.0));`,
 
+  // Gym: polished wood floor, rubber mats, overhead fluorescent bars.
+  gym: `float plank = floor(uv.x * 14.0), gap = smoothstep(0.0, 0.03, abs(fract(uv.x * 14.0) - 0.5) * 2.0 - 0.95);
+    float grain = noise(vec2(uv.x * 100.0 + plank * 5.0, uv.y * 4.0 + plank)) * 0.4 + noise(vec2(uv.x * 30.0, uv.y * 2.0)) * 0.6;
+    vec3 c = mix(vec3(0.28, 0.15, 0.08), vec3(0.42, 0.26, 0.14), hash(vec2(plank, 2.0)) * 0.5 + grain * 0.5) * (1.0 - gap * 0.4);
+    float mat = smoothstep(0.3, 0.32, uv.y) * (1.0 - smoothstep(0.68, 0.70, uv.y));
+    c = mix(c, vec3(0.12, 0.12, 0.18) + vec3(0.03) * noise(uv * 20.0), mat * 0.4);
+    c += vec3(0.95, 0.95, 1.0) * 0.08 * smoothstep(0.7, 0.95, uv.y) * (0.85 + 0.15 * step(0.5, fract(uv.x * 4.0)));`,
+
+  // Smithy: stone walls, warm forge glow, anvil silhouette.
+  smithy: `float stone = noise(uv * 6.0) * 0.4 + noise(uv * 12.0 + 3.1) * 0.3 + noise(uv * 24.0 + 7.7) * 0.3;
+    vec3 c = mix(vec3(0.12, 0.10, 0.09), vec3(0.22, 0.18, 0.14), stone);
+    float glow = exp(-dot(p - vec2(0.0, -0.3), p - vec2(0.0, -0.3)) * 2.5);
+    c += vec3(1.0, 0.4, 0.1) * glow * (0.6 + 0.4 * sin(t * 2.5 + noise(uv * 3.0 + t) * 2.0));
+    c += vec3(1.0, 0.6, 0.2) * 0.05 * exp(-length(p - vec2(0.0, -0.6)) * 4.0) * (0.8 + 0.2 * sin(t * 4.0));`,
+
+  // Launchpad: starfield with nebula, rocket exhaust glow from below.
+  launchpad: `vec2 sg = uv * vec2(180.0, 100.0);
+    vec3 c = vec3(0.02, 0.02, 0.06) + vec3(0.08, 0.04, 0.12) * smoothstep(0.3, 0.7, fbm(uv * 3.0 + 1.5));
+    c += step(0.993, hash(floor(sg))) * smoothstep(0.4, 0.1, length(fract(sg) - 0.5)) * (0.5 + 0.5 * sin(t * 1.5 + hash(floor(sg)) * 40.0));
+    float exhaust = exp(-dot(p - vec2(0.0, -1.0), p - vec2(0.0, -1.0)) * 1.5) * uDrive;
+    c += vec3(1.0, 0.6, 0.2) * exhaust * (0.7 + 0.3 * sin(t * 8.0 + uv.y * 20.0));`,
+
+  // Neon: dark tunnel with neon grid lines and pulsing colour.
+  neon: `vec3 c = vec3(0.02, 0.01, 0.04);
+    float gx = smoothstep(0.04, 0.0, abs(fract(uv.x * 8.0 + t * 0.1) - 0.5));
+    float gy = smoothstep(0.04, 0.0, abs(fract(uv.y * 6.0 + t * 0.08) - 0.5));
+    vec3 neonA = vec3(1.0, 0.2, 0.6), neonB = vec3(0.2, 0.6, 1.0);
+    c += mix(neonA, neonB, 0.5 + 0.5 * sin(t * 0.7)) * (gx + gy) * 0.35;
+    c += vec3(0.6, 0.1, 0.8) * 0.15 * exp(-dot(p, p) * 1.5) * (0.7 + 0.3 * sin(t * 1.2));`,
+
+  // Stage: dance-floor with spotlight and disco squares.
+  dancestage: `float tile = step(0.5, fract(uv.x * 8.0)) + step(0.5, fract(uv.y * 6.0));
+    tile = mod(tile, 2.0);
+    vec3 c = mix(vec3(0.08, 0.06, 0.12), vec3(0.14, 0.10, 0.20), tile * 0.5);
+    float spot = exp(-dot(p, p) * 3.0);
+    vec3 spotCol = mix(vec3(1.0, 0.3, 0.6), vec3(0.3, 0.6, 1.0), 0.5 + 0.5 * sin(t * 0.8));
+    c += spotCol * spot * 0.4;
+    c += vec3(0.9, 0.9, 1.0) * 0.08 * step(0.98, hash(floor(uv * vec2(8.0, 6.0) + floor(t * 2.0))));`,
+
+  // Field: green pitch with white goal lines and net shadows.
+  field: `vec3 c = mix(vec3(0.14, 0.38, 0.08), vec3(0.20, 0.48, 0.12), step(0.5, fract(uv.y * 12.0)));
+    c *= 0.85 + 0.15 * noise(uv * 30.0);
+    float line = smoothstep(0.02, 0.0, abs(uv.y - 0.15)) + smoothstep(0.02, 0.0, abs(uv.x - 0.15)) * step(uv.y, 0.15) + smoothstep(0.02, 0.0, abs(uv.x - 0.85)) * step(uv.y, 0.15);
+    c = mix(c, vec3(0.95), line * 0.9);
+    float net = step(0.85, uv.y) * (smoothstep(0.03, 0.0, abs(fract(uv.x * 20.0) - 0.5)) + smoothstep(0.03, 0.0, abs(fract(uv.y * 20.0) - 0.5))) * 0.15;
+    c = mix(c, vec3(0.9), net);`,
+
+  // Warehouse: concrete walls, stacked crates, industrial lights.
+  warehouse: `float brick = noise(uv * vec2(12.0, 8.0)) * 0.3 + noise(uv * vec2(24.0, 16.0)) * 0.2;
+    float mortar = smoothstep(0.04, 0.0, abs(fract(uv.x * 6.0) - 0.5)) + smoothstep(0.06, 0.0, abs(fract(uv.y * 4.0) - 0.5));
+    vec3 c = mix(vec3(0.25, 0.22, 0.20), vec3(0.35, 0.30, 0.26), brick) * (1.0 - mortar * 0.3);
+    c += vec3(1.0, 0.9, 0.7) * 0.1 * exp(-length(p - vec2(0.0, 0.8)) * 5.0);`,
+
+  // Bathroom: tiled wall with water sheen.
+  bathroom: `float tileX = step(0.06, fract(uv.x * 10.0)) * step(fract(uv.x * 10.0), 0.94);
+    float tileY = step(0.06, fract(uv.y * 8.0)) * step(fract(uv.y * 8.0), 0.94);
+    vec3 c = mix(vec3(0.15, 0.15, 0.20), vec3(0.75, 0.80, 0.85), tileX * tileY);
+    c += vec3(0.1, 0.15, 0.2) * hash(floor(uv * vec2(10.0, 8.0))) * tileX * tileY;
+    float sheen = 0.08 * smoothstep(0.3, 0.7, sin(uv.x * 15.0 + uv.y * 8.0 + t * 0.5));
+    c += vec3(0.6, 0.8, 1.0) * sheen * uDrive;`,
+
+  // Park: open sky gradient, distant trees, grass.
+  park: `float sky = smoothstep(0.4, 0.9, uv.y);
+    vec3 c = mix(vec3(0.22, 0.50, 0.14), vec3(0.55, 0.78, 0.95), sky);
+    float hill = smoothstep(0.42, 0.40, uv.y + 0.03 * sin(uv.x * 8.0));
+    c = mix(c, vec3(0.18, 0.42, 0.12), hill);
+    c *= 0.9 + 0.1 * noise(uv * 20.0);
+    c += vec3(1.0, 0.95, 0.8) * 0.15 * exp(-length(p - vec2(0.6, 0.6)) * 6.0);`,
+
+  // Pipe: brick wall with cracks and water drips.
+  pipe: `float bx = floor(uv.x * 10.0), by = floor(uv.y * 16.0);
+    float off = mod(by, 2.0) * 0.5;
+    float seamX = smoothstep(0.04, 0.0, abs(fract(uv.x * 10.0 + off) - 0.5) * 2.0 - 0.92);
+    float seamY = smoothstep(0.06, 0.0, abs(fract(uv.y * 16.0) - 0.5) * 2.0 - 0.88);
+    vec3 c = mix(vec3(0.45, 0.22, 0.12), vec3(0.55, 0.30, 0.18), hash(vec2(bx + off, by)));
+    c *= 1.0 - (seamX + seamY) * 0.5;
+    float drip = smoothstep(0.02, 0.0, abs(uv.x - 0.3 - 0.1 * sin(uv.y * 20.0 + t))) * step(uv.y, 0.7) * uDrive;
+    c = mix(c, vec3(0.3, 0.5, 0.7), drip * 0.6);`,
+
+  // Puzzle: geometric dark space with floating shapes.
+  puzzle: `vec3 c = vec3(0.04, 0.03, 0.08);
+    float grid = smoothstep(0.02, 0.0, abs(fract(uv.x * 6.0) - 0.5)) + smoothstep(0.02, 0.0, abs(fract(uv.y * 4.0) - 0.5));
+    c += vec3(0.15, 0.08, 0.25) * grid * 0.2;
+    for (int i = 0; i < 4; i++) {
+      float fi = float(i);
+      vec2 center = vec2(0.3 * sin(t * 0.3 + fi * 1.5) + 0.5, 0.3 * cos(t * 0.4 + fi * 2.0) + 0.5);
+      float d = length(uv - center);
+      c += mix(vec3(0.8, 0.2, 0.5), vec3(0.2, 0.5, 0.8), fi / 3.0) * 0.08 * exp(-d * 8.0);
+    }`,
+
 };
 export type Place = keyof typeof PLACES;
 // ---- the Mirror look: the room itself is the world ---------------------------------------------------------------------

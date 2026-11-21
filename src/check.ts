@@ -5,6 +5,8 @@ import { assignSlots, frameClock, handInZone, isAir, isLow, palm, leanOf, limbAn
 import { summary, DAY_GOAL } from './stats.ts';
 import { STARS, STAGES, BADGES, badgesOf, bestStars, dailyChallenges, levelOf, sessionXp, starGoals, starsFor, unlockedStage, variantOf, xpOf } from './meta.ts';
 
+const ALL_GAMES = ['beat', 'forge', 'freeze', 'goalie', 'jab', 'jackattack', 'keepyuppy', 'leaks', 'lumberjack', 'pulse', 'rocket', 'run', 'shapeup', 'slice', 'smash', 'sprint', 'wipe'].sort();
+
 // A body: shoulders 0.1 apart (camera frame, aspect 1) centred at cx, wrists wherever we put them.
 const body = (cx: number, sw = 0.1, wrist = { x: cx, y: 0.5 }) => {
   const lm = Array.from({ length: 33 }, () => ({ x: cx, y: 0.5, z: 0, visibility: 1 }));
@@ -90,10 +92,12 @@ assert.equal(unlockedStage([...log, { ...played('run', 1, 1000), variant: 'team'
 assert.equal(summary([{ ...played('run', 1, 1000), variant: 'team' }], 'A').best.run, undefined); // and its score is not your solo best
 assert.equal(xpOf(log, 'A'), 40 + 40 + 40 + 40 + 10); // three sessions' points, two stars, one stage-2 bonus
 assert.deepEqual([levelOf(0).level, levelOf(59).level, levelOf(60).level, levelOf(240).level], [1, 1, 2, 3]);
-assert.ok(badgesOf(log, 'A').includes('first') && badgesOf(log, 'A').includes('century') && badgesOf(log, 'A').includes('explorer'));
+assert.ok(badgesOf(log, 'A').includes('first') && badgesOf(log, 'A').includes('century'));
+const allPlayedLog = [...log, ...ALL_GAMES.filter((g) => g !== 'slice' && g !== 'run').map((g) => played(g, 1, 10))];
+assert.ok(badgesOf(allPlayedLog, 'A').includes('explorer'));
 assert.ok(!badgesOf([played('slice', 1, 100, 99)], 'A').includes('century'));
 assert.ok(badgesOf([played('slice', 1, 100, 100)], 'A').includes('century'));
-assert.ok(!badgesOf(log.filter((s) => s.game === 'slice'), 'A').includes('explorer'));
+assert.ok(!badgesOf(log, 'A').includes('explorer'));
 const daily = dailyChallenges(log, 'A', {});
 assert.equal(daily.length, 3);
 assert.deepEqual(daily.map((c) => c.id), dailyChallenges([], 'B', {}).map((c) => c.id)); // same three for everyone, all day
@@ -123,11 +127,11 @@ assert.ok(daily[0].have === Math.min(daily[0].goal, 120));
   assert.ok(!isAir(at(-0.4, 3))); // driving up out of a squat is not a jump
 }
 
-// The public demo must offer only playable games, goals, and attainable badges.
-assert.deepEqual(Object.keys(STARS).sort(), ['run', 'slice']);
-assert.deepEqual(readdirSync(new URL('./games/', import.meta.url)).sort(), ['run.ts', 'slice.ts']);
+// The catalog must offer only playable games, goals, and attainable badges.
+assert.deepEqual(Object.keys(STARS).sort(), ALL_GAMES);
+assert.deepEqual(readdirSync(new URL('./games/', import.meta.url)).sort(), ALL_GAMES.map((g) => `${g}.ts`));
 const shell = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
-assert.deepEqual([...shell.matchAll(/import\('\.\/games\/([^']+)\.ts'\)/g)].map((m) => m[1]).sort(), ['run', 'slice']);
+assert.deepEqual([...shell.matchAll(/import\('\.\/games\/([^']+)\.ts'\)/g)].map((m) => m[1]).sort(), ALL_GAMES);
 const maxStars = Object.keys(STARS).length * STAGES * 3;
 const completed = Object.keys(STARS).flatMap((game) => Array.from({ length: STAGES }, (_, i) => played(game, i + 1, 100000)));
 assert.ok(badgesOf(completed, 'A').includes('explorer'));

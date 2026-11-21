@@ -5,10 +5,19 @@ import { createRoot } from 'react-dom/client';
 import { grip, perf, players, setPlayers, sim, startPose, track, tuning } from './pose.ts';
 import { DAY_GOAL, load, save, summary, type Session } from './stats.ts';
 import { BADGES, CHALLENGE_XP, STAGES, badgesOf, bestScore, bestStars, dailyChallenges, levelOf, sessionXp, starGoals, starsFor, totalStars, unlockedStage, variantOf, xpOf } from './meta.ts';
-import { loadAudio } from './audio.ts';
+import { loadAudio, customTrack } from './audio.ts';
 import { PLAYER_COLORS, Shell, audio, effects, jingle, play, say, sfx, type Playable } from './stage.tsx';
 // The public demo includes two games, loaded on demand.
 const Slice = play(() => import('./games/slice.ts')), Run = play(() => import('./games/run.ts'));
+const Sprint = play(() => import('./games/sprint.ts')), JackAttack = play(() => import('./games/jackattack.ts'));
+const Forge = play(() => import('./games/forge.ts')), Lumberjack = play(() => import('./games/lumberjack.ts'));
+const Rocket = play(() => import('./games/rocket.ts'));
+const Pulse = play(() => import('./games/pulse.ts')), Beat = play(() => import('./games/beat.ts'));
+const Freeze = play(() => import('./games/freeze.ts'));
+const ShapeUp = play(() => import('./games/shapeup.ts'));
+const Jab = play(() => import('./games/jab.ts')), Goalie = play(() => import('./games/goalie.ts'));
+const Smash = play(() => import('./games/smash.ts')), Wipe = play(() => import('./games/wipe.ts'));
+const KeepyUppy = play(() => import('./games/keepyuppy.ts')), Leaks = play(() => import('./games/leaks.ts'));
 
 type GameMode = { id: string; name: string; blurb: string }; // id '' is the standard mode
 // `team`: the game knows how to be played by two as one team (a shared score); otherwise two players are always rivals.
@@ -16,9 +25,33 @@ type Game = { id: string; name: string; icon: string; tone: [string, string]; bl
 // The library. A new game = one component + one row here (+ its star goals in meta.ts). maxPlayers 2 only for
 // compact-footprint games (PLAN §3); a wide game is still playable by two through "Take turns".
 const GAMES: Game[] = [
+  // MUSIC & DANCE
+  { id: 'pulse', name: 'Pulse', icon: '🎵', tone: ['#a855f7', '#ec4899'], blurb: 'Hit the music. A neon tunnel, three songs.', how: 'Swing, clap and duck to the beat. Each move lights the tunnel. Chain them without missing for a combo. The music drives everything.', maxPlayers: 2, Play: Pulse },
+  // ARCADE
   { id: 'run', name: 'Run', icon: '🏃', tone: ['#ff8a3d', '#ff3d6e'], blurb: 'Endless runner. Lean, jump, duck.', how: 'Lean left or right to change lane. Jump the barrels and duck the beams. Never run into a crate stack. Grab coins and power-ups in the lanes.', maxPlayers: 2, Play: Run },
-  { id: 'slice', name: 'Slice', icon: '🍉', tone: ['#3ddc84', '#0e9aa7'], blurb: 'Cut the fruit, dodge the bombs.', how: 'Swipe fast through the fruit. One swing through three or more pays extra, and so does a really hard cut. Glowing bananas are power-ups. Never touch a bomb.', maxPlayers: 2, Play: Slice, team: true,
-    modes: [{ id: '', name: 'Arcade', blurb: '60 seconds, power-ups, bombs cost points' }, { id: 'classic', name: 'Classic', blurb: 'Three lives. Drop a fruit or hit a bomb and lose one' }, { id: 'zen', name: 'Zen', blurb: '90 calm seconds, no bombs. A good cool-down' }] },
+  {
+    id: 'slice', name: 'Slice', icon: '🍉', tone: ['#3ddc84', '#0e9aa7'], blurb: 'Cut the fruit, dodge the bombs.', how: 'Swipe fast through the fruit. One swing through three or more pays extra, and so does a really hard cut. Glowing bananas are power-ups. Never touch a bomb.', maxPlayers: 2, Play: Slice, team: true,
+    modes: [{ id: '', name: 'Arcade', blurb: '60 seconds, power-ups, bombs cost points' }, { id: 'classic', name: 'Classic', blurb: 'Three lives. Drop a fruit or hit a bomb and lose one' }, { id: 'zen', name: 'Zen', blurb: '90 calm seconds, no bombs. A good cool-down' }]
+  },
+  { id: 'keepyuppy', name: 'Keepy-Uppy', icon: '🎈', tone: ['#f472b6', '#8b5cf6'], blurb: 'Keep the balloon off the floor.', how: 'Use your head and feet to keep the balloon in the air. Headers and kicks both count. Each hit scores, and combos build fast.', maxPlayers: 2, Play: KeepyUppy, team: true, crew: true },
+  { id: 'leaks', name: 'Leaks', icon: '💧', tone: ['#38bdf8', '#6366f1'], blurb: 'Plug the cracks with your whole body.', how: 'Water sprays from cracks in the wall. Cover each crack with a hand, foot, or your head to plug it. More cracks appear as you go. Miss one too long and you lose a life.', maxPlayers: 1, Play: Leaks },
+  // WORKOUTS
+  { id: 'sprint', name: 'Sprint', icon: '⚡', tone: ['#f59e0b', '#ef4444'], blurb: 'Knees up. Three heats, flat out.', how: 'Run on the spot as fast as you can. Your pace is your speed. Knees up high counts as a faster stride. Three heats, fastest total time wins.', maxPlayers: 2, Play: Sprint },
+  { id: 'jackattack', name: 'Jack Attack', icon: '💥', tone: ['#ef4444', '#f97316'], blurb: 'Every jumping jack fires the cannon.', how: 'Do a jumping jack — arms up, feet apart — and the cannon fires. Hit the targets before they reach the ground. Faster jacks mean more firepower.', maxPlayers: 2, Play: JackAttack },
+  { id: 'forge', name: 'Forge', icon: '🔨', tone: ['#f97316', '#dc2626'], blurb: 'Hold the squat. Strike when it glows.', how: 'Squat down to heat the blade on the anvil. The longer you hold, the hotter it glows. Stand and strike at peak heat for maximum points. Bad timing wastes heat.', maxPlayers: 1, Play: Forge },
+  { id: 'lumberjack', name: 'Lumberjack', icon: '🪓', tone: ['#22c55e', '#15803d'], blurb: 'Chop along the stripe.', how: 'Logs slide down. Wind up by raising your hands, then chop across your body to cut them. Match the angle of the stripe on each log. Clean cuts score more.', maxPlayers: 1, Play: Lumberjack },
+  { id: 'smash', name: 'Smash', icon: '📦', tone: ['#a855f7', '#7c3aed'], blurb: 'Knock the crate tower down.', how: 'Towers of crates rise up. Swipe them hard with your hands to knock them down. The faster your swing, the more crates fly. Clear the whole tower for a bonus.', maxPlayers: 2, Play: Smash },
+  // MORE ARCADE
+  { id: 'jab', name: 'Jab', icon: '🥊', tone: ['#dc2626', '#f59e0b'], blurb: 'Punch the pads, squat under the bar.', how: 'Hit pads that flash in front of you. Squat when the bar sweeps across. Combos build as you chain punches. Speed and accuracy both count.', maxPlayers: 1, Play: Jab },
+  { id: 'goalie', name: 'Goalie', icon: '🧤', tone: ['#22c55e', '#3b82f6'], blurb: 'Get a glove to every shot.', how: 'Balls fly toward the goal. Move your hands to block each shot. Harder saves score more. Let three past and the round is over.', maxPlayers: 1, Play: Goalie },
+  { id: 'wipe', name: 'Wipe', icon: '🧽', tone: ['#06b6d4', '#14b8a6'], blurb: 'Scrub the screen clean before the grime creeps back.', how: 'Grime covers the screen. Wipe it away with your hands. It creeps back, so keep scrubbing. Clear the whole screen to advance. Speed matters.', maxPlayers: 2, Play: Wipe, team: true, crew: true },
+  // MUSIC & DANCE (cont.)
+  { id: 'beat', name: 'Beat', icon: '🎶', tone: ['#ec4899', '#8b5cf6'], blurb: 'Hit the moves on the beat.', how: 'Arrows and icons show you what to do — raise your hands, jump, duck, lean. Hit each one on the beat. Perfect timing scores double. Miss three in a row and your streak breaks.', maxPlayers: 1, Play: Beat },
+  { id: 'freeze', name: 'Freeze', icon: '🧊', tone: ['#38bdf8', '#a855f7'], blurb: 'Dance, then hold dead still.', how: 'Dance when the music plays — the more you move, the more you score. When it stops, FREEZE. Any movement during the freeze costs you. Hold perfectly still.', maxPlayers: 2, Play: Freeze },
+  // POSE
+  { id: 'shapeup', name: 'Shape Up', icon: '🔷', tone: ['#6366f1', '#06b6d4'], blurb: 'Match the shape before it lands.', how: 'A shape falls from the top. Match it with your body before it reaches the bottom. Arms wide for a T, crouch for a ball, lean for a diagonal. Closer match means more stars.', maxPlayers: 1, Play: ShapeUp },
+  // WORKOUT
+  { id: 'rocket', name: 'Rocket', icon: '🚀', tone: ['#8b5cf6', '#3b82f6'], blurb: 'Every squat is an engine burn.', how: 'Squat to fire the rocket engines. The deeper and faster you squat, the more thrust. Steer left and right to dodge asteroids. Reach the highest altitude you can.', maxPlayers: 1, Play: Rocket },
 ];
 const NAMES = Object.fromEntries(GAMES.map((g) => [g.id, g.name]));
 const BADGE_ICON: Record<string, string> = { first: '👟', explorer: '🧭', century: '💯', double: '🔥', streak3: '📅', streak7: '🗓️', streak30: '⚡', stars10: '⭐', stars20: '🌟', stars30: '🌌', flawless: '💎', summit: '🏔️', five: '🖐️', level5: '💪', level10: '🏅', early: '🌅', runner: '🏁' };
@@ -27,7 +60,7 @@ const MODES = { solo: 'Solo', together: 'Together', turns: 'Take turns' } as con
 type Mode = keyof typeof MODES;
 type Reward = { stars: number; xp: number; newBest: boolean; levelUp: number; badges: string[]; challenges: string[] };
 type Round = { game: Game; stage: number; mode: string; turn: number; scores: number[]; points: number[]; rewards: Reward[]; notes: string[][] };
-type Screen = { at: 'start' | 'home' | 'stats' | 'badges' | 'tracking' } | { at: 'brief'; game: Game; stage: number; mode: string } | ({ at: 'play' | 'next' | 'results' } & Round);
+type Screen = { at: 'start' | 'home' | 'stats' | 'badges' | 'tracking' | 'calibrate' | 'routine-summary' } | { at: 'brief'; game: Game; stage: number; mode: string } | ({ at: 'play' | 'next' | 'results' } & Round);
 
 const vars = (v: Record<string, string | number>) => v as CSSProperties; // CSS custom properties for inline style
 const toneOf = (g: Game) => vars({ '--a': g.tone[0], '--b': g.tone[1] });
@@ -199,6 +232,84 @@ function HandCursor() {
   return <div className="cursor" ref={el} />;
 }
 
+function CalibrationView({ onReady }: { onReady: () => void }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const [status, setStatus] = useState({ head: false, hands: false, feet: false, distance: 'Step into view', allGood: false });
+
+  useEffect(() => {
+    let raf = requestAnimationFrame(function check() {
+      raf = requestAnimationFrame(check);
+      const c = canvas.current;
+      if (!c) return;
+      const g = c.getContext('2d')!, W = (c.width = c.clientWidth * 2), H = (c.height = c.clientHeight * 2);
+      g.clearRect(0, 0, W, H);
+
+      const pl = players[0];
+      if (!pl.present || !pl.body.length) {
+        setStatus({ head: false, hands: false, feet: false, distance: sim ? 'Simulator mode (Ready)' : 'Step into camera view', allGood: sim });
+        return;
+      }
+
+      const b = pl.body;
+      const seen = (k: number) => b[k][2] > 0.45;
+      const headOk = seen(0) && b[0][1] >= 0.04;
+      const handsOk = seen(15) && seen(16);
+      const feetOk = seen(27) && seen(28);
+      const width = Math.hypot(b[11][0] - b[12][0], b[11][1] - b[12][1]);
+      const distOk = width >= 0.07 && width <= 0.22;
+      const distText = width < 0.07 ? 'Come closer' : width > 0.22 ? 'Step back a little' : 'Optimal distance!';
+      const allGood = headOk && handsOk && feetOk && distOk;
+
+      setStatus({ head: headOk, hands: handsOk, feet: feetOk, distance: distText, allGood });
+
+      // Draw silhouette
+      const tone = allGood ? '#4ade80' : '#818cf8';
+      const at = (k: number) => [b[k][0] * W, b[k][1] * H] as const;
+      g.lineCap = g.lineJoin = 'round';
+      g.strokeStyle = tone;
+      g.lineWidth = 6;
+      for (const [a, z] of BONES) {
+        if (seen(a) && seen(z)) {
+          g.beginPath(); g.moveTo(...at(a)); g.lineTo(...at(z)); g.stroke();
+        }
+      }
+      g.fillStyle = tone;
+      if (seen(0)) { g.beginPath(); g.arc(b[0][0] * W, b[0][1] * H, 20, 0, 7); g.fill(); }
+      for (const k of [15, 16, 27, 28]) {
+        if (seen(k)) { g.fillStyle = '#fde047'; g.beginPath(); g.arc(...at(k), 12, 0, 7); g.fill(); }
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <div className="col" style={{ alignItems: 'center', gap: '1.5rem', width: '100%', maxWidth: '52rem' }}>
+      <canvas ref={canvas} className="calib-canvas" />
+      <div className="checklist" style={{ width: '100%' }}>
+        <div className={status.head ? 'check-item ok' : 'check-item'}>
+          <span className="badge">{status.head ? '✓' : '•'}</span>
+          <span>👤 Head in Frame {status.head ? '— Good' : '— Make sure your head is visible'}</span>
+        </div>
+        <div className={status.hands ? 'check-item ok' : 'check-item'}>
+          <span className="badge">{status.hands ? '✓' : '•'}</span>
+          <span>👐 Both Hands Tracked {status.hands ? '— Ready' : '— Raise hands into frame'}</span>
+        </div>
+        <div className={status.feet ? 'check-item ok' : 'check-item'}>
+          <span className="badge">{status.feet ? '✓' : '•'}</span>
+          <span>🦶 Feet on Ground {status.feet ? '— Visible' : '— Step back until feet show'}</span>
+        </div>
+        <div className={status.distance === 'Optimal distance!' ? 'check-item ok' : 'check-item'}>
+          <span className="badge">{status.distance === 'Optimal distance!' ? '✓' : '•'}</span>
+          <span>📏 Room Distance: <b>{status.distance}</b></span>
+        </div>
+      </div>
+      <button className={status.allGood ? 'primary giant' : 'giant'} onClick={onReady}>
+        {status.allGood ? 'Looks Great! Continue →' : 'Continue Anyway'}
+      </button>
+    </div>
+  );
+}
+
 // Where the camera sees you, without showing the camera: a little frame with a stick figure per player, drawn from
 // the tracked joints, plus a word of guidance when the framing is off. Big in the menus, tiny in a corner in play.
 const BONES = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28]];
@@ -254,9 +365,34 @@ function App() {
   const [fx, setFx] = useState(effects.on);
   const [paused, setPaused] = useState(false);
   const [coop, setCoop] = useState(true); // two players: one team by default — it is what brings a couple back; rivals by choice
+  const [routine, setRoutine] = useState<{ step: number; games: Game[]; totalScores: number[]; totalPoints: number[] } | null>(null);
+  const audioFileRef = useRef<HTMLInputElement>(null);
+  const [customAudioName, setCustomAudioName] = useState(customTrack.name);
   const n = mode === 'together' ? 2 : 1; // bodies tracked at once; "turns" is two people, one at a time
   const energy0 = useRef([0, 0]);
   const name = (slot: number) => db.profiles[who[slot]];
+
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await customTrack.load(file);
+      setCustomAudioName(customTrack.name);
+    }
+  };
+  const clearCustomAudio = () => {
+    customTrack.clear();
+    setCustomAudioName('');
+  };
+
+  const startRoutine = () => {
+    const routineGames = [
+      GAMES.find((g) => g.id === 'sprint') || GAMES[0],
+      GAMES.find((g) => g.id === 'pulse') || GAMES[1],
+      GAMES.find((g) => g.id === 'smash') || GAMES[2],
+    ];
+    setRoutine({ step: 0, games: routineGames, totalScores: [], totalPoints: [] });
+    go({ at: 'brief', game: routineGames[0], stage: 1, mode: '' });
+  };
 
   useEffect(() => { // every button press clicks, whoever pressed it: finger, mouse or hand
     const click = (e: MouseEvent) => (e.target as Element).closest?.('button') && sfx('click', { vol: 0.5 });
@@ -285,7 +421,7 @@ function App() {
   const toggleFx = () => { effects.on = !fx; setFx(!fx); try { localStorage.setItem('romp.fx', fx ? 'off' : 'on'); } catch { /* private mode */ } };
   const start = async () => {
     // Fullscreen first: it needs the tap's user-activation, which is gone once the camera prompt and model load finish.
-    try { void document.documentElement.requestFullscreen().catch(() => {}); } catch { /* not supported — play windowed */ }
+    try { void document.documentElement.requestFullscreen().catch(() => { }); } catch { /* not supported — play windowed */ }
     void audio().resume(); // same reason: games are later started by a hand-dwell, which is not a user gesture
     void loadAudio(); // samples decode in the background; until then sounds fall back to synth blips
     try { await startPose(video.current!); } catch (e) {
@@ -316,6 +452,11 @@ function App() {
       return { stars, xp: xp + challenges.length * CHALLENGE_XP, newBest, levelUp: levelNow > level ? levelNow : 0, badges: badgesOf(sessions, me, t).filter((b) => !hadBadges.includes(b)), challenges: challenges.map((c) => c.text) };
     });
     update({ ...db, sessions });
+    if (routine && routine.games[routine.step]?.id === run.game.id) {
+      const nextScores = [...routine.totalScores, scores[0] ?? 0];
+      const nextPoints = [...routine.totalPoints, points[0] ?? 0];
+      setRoutine({ ...routine, totalScores: nextScores, totalPoints: nextPoints });
+    }
     go({ ...run, at: 'results', scores, points, rewards, notes });
     rewards.forEach((r) => Array.from({ length: r.stars }, (_, k) => setTimeout(() => sfx('select', { vol: 0.8, rate: 1 + k * 0.25, jitter: 0 }), 500 + k * 350))); // one chime per star as it pops
 
@@ -346,8 +487,8 @@ function App() {
       {screen.at === 'start' && (
         <div className="screen" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: '2rem' }}>
           <Logo huge />
-          <h2>Romp Demo · Run and Slice</h2>
-          <p className="dim">Two motion games with basic camera tracking.</p>
+          <h2>Romp · 17 Games</h2>
+          <p className="dim">Your body is the controller. Workouts, arcade, dance and pose games.</p>
           <div className="row" style={{ justifyContent: 'center' }}>
             {['📺 Stand the tablet under the TV', '🚶 Step back till your whole body shows', '✊ Point at a button, close your fist to press'].map((t) => <span className="goal" key={t}>{t}</span>)}
           </div>
@@ -361,6 +502,12 @@ function App() {
             <Logo /><span className="pill">Demo</span>
             <p className="dim num grow" style={{ paddingLeft: '1rem' }}><Fps /></p>
             <button className="ghost" onClick={toggleFx}>✨ Glow {fx ? 'on' : 'off'}</button>
+            <button className="ghost" onClick={() => go({ at: 'calibrate' })}>📏 Calibrate</button>
+            <button className="ghost" onClick={() => audioFileRef.current?.click()}>
+              🎵 {customAudioName ? `Music: ${customAudioName}` : 'Custom Music'}
+            </button>
+            {customAudioName && <button className="ghost" title="Revert to default music" onClick={clearCustomAudio}>✕</button>}
+            <input type="file" ref={audioFileRef} accept="audio/*" style={{ display: 'none' }} onChange={handleAudioUpload} />
             <button className="ghost" onClick={() => go({ at: 'tracking' })}>🎯 Tracking</button>
             <button className="ghost" onClick={() => go({ at: 'badges' })}>🏅 Badges</button>
             <button className="ghost" onClick={() => go({ at: 'stats' })}>📊 Stats</button>
@@ -391,6 +538,13 @@ function App() {
                 </div>
               ))}
             </div>
+          </div>
+          <div className="panel routine-box" style={{ margin: '1rem 0 0 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(249, 115, 22, 0.15))', border: '1px solid rgba(249, 115, 22, 0.3)' }}>
+            <div>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>⚡ Daily Warm-up Circuit <span className="pill">3 Games</span></h3>
+              <p className="dim" style={{ margin: '0.25rem 0 0 0' }}>Sprint (Cardio Warm-up) → Pulse (Rhythm & Agility) → Smash (Power Burn) back-to-back</p>
+            </div>
+            <button className="primary" onClick={startRoutine}>Start Circuit →</button>
           </div>
           <div className="cards">
             {GAMES.filter((g) => g.maxPlayers >= n).map((g, i) => (
@@ -487,10 +641,52 @@ function App() {
             })}
           </div>
           <div className="row" style={{ justifyContent: 'center' }}>
+            {routine && routine.step < routine.games.length - 1 && (
+              <button className="primary" onClick={() => {
+                const nextStep = routine.step + 1;
+                const nextGame = routine.games[nextStep];
+                setRoutine({ ...routine, step: nextStep });
+                go({ at: 'brief', game: nextGame, stage: 1, mode: '' });
+              }}>
+                Next Circuit Game ({routine.games[routine.step + 1].name}) →
+              </button>
+            )}
+            {routine && routine.step >= routine.games.length - 1 && (
+              <button className="primary" onClick={() => go({ at: 'routine-summary' })}>
+                View Circuit Summary 🏆
+              </button>
+            )}
             <button className="primary" onClick={() => play(screen.game, screen.stage, screen.mode)}>Play again</button>
             {screen.stage < open(screen.game, screen.mode) && <button onClick={() => play(screen.game, screen.stage + 1, screen.mode)}>Next stage →</button>}
             <button onClick={() => go({ at: 'home' })}>Home</button>
           </div>
+        </div>
+      )}
+      {screen.at === 'calibrate' && (
+        <div className="screen">
+          <div className="row"><h1 className="grow">📏 Calibration Assistant</h1><button className="ghost" onClick={() => go({ at: 'home' })}>← Back</button></div>
+          <CalibrationView onReady={() => go({ at: 'home' })} />
+        </div>
+      )}
+      {screen.at === 'routine-summary' && (
+        <div className="screen" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: '1.5rem' }}>
+          <Confetti />
+          <h1>🏆 Warm-up Circuit Complete!</h1>
+          <p className="dim">Amazing job completing the 3-stage fitness routine.</p>
+          <div className="results" style={{ justifyContent: 'center' }}>
+            <div className="panel result" style={{ minWidth: '22rem' }}>
+              <h2>{name(0)}</h2>
+              <p className="score num">{routine?.totalScores.reduce((a, b) => a + b, 0) ?? 0}</p>
+              <p className="dim num">Total Circuit Score</p>
+              <p className="num">+{routine?.totalPoints.reduce((a, b) => a + b, 0) ?? 0} activity points</p>
+              <div className="row" style={{ justifyContent: 'center', marginTop: '1rem', flexWrap: 'wrap' }}>
+                {routine?.games.map((g, idx) => (
+                  <span key={g.id} className="goal">{g.icon} {g.name}: {routine.totalScores[idx] ?? 0} pts</span>
+                ))}
+              </div>
+            </div>
+          </div>
+          <button className="primary giant" onClick={() => { setRoutine(null); go({ at: 'home' }); }}>Done</button>
         </div>
       )}
       {screen.at === 'tracking' && (

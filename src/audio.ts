@@ -120,18 +120,66 @@ function kick(at: number) {
   o.stop(at + 0.25);
 }
 
+let customSource: AudioBufferSourceNode | null = null;
+let customBuffer: AudioBuffer | null = null;
+let customName = '';
+
+export const customTrack = {
+  get name() { return customName; },
+  get isLoaded() { return customBuffer !== null; },
+  async load(file: File): Promise<string> {
+    const arrayBuffer = await file.arrayBuffer();
+    customBuffer = await audio().decodeAudioData(arrayBuffer);
+    customName = file.name.replace(/\.[^/.]+$/, '');
+    return customName;
+  },
+  clear() {
+    customTrack.stop();
+    customBuffer = null;
+    customName = '';
+  },
+  stop() {
+    if (customSource) {
+      try { customSource.stop(); } catch { /* ignore */ }
+      customSource.disconnect();
+      customSource = null;
+    }
+  }
+};
+
 const m = { theme: null as null | (typeof THEMES)[Theme], start: 0, step: 0, level: 0, target: 0, on: true, timer: 0 };
 export const music = {
   get beat() { return m.theme ? 60 / m.theme.bpm : 0.5; },
   // `at` = the audio-clock moment of beat zero, so a game can lock its own timing to the music.
   start(theme: Theme, at = audio().currentTime + 0.1, intensity = 0.3) {
     music.stop();
+    if (customBuffer) {
+      // Play custom user audio track looped
+      customSource = audio().createBufferSource();
+      customSource.buffer = customBuffer;
+      customSource.loop = true;
+      customSource.connect(musicBus);
+      customSource.start(at);
+    }
     Object.assign(m, { theme: THEMES[theme], start: at, step: 0, level: intensity, target: intensity, on: true });
     m.timer = window.setInterval(schedule, 25);
   },
-  stop() { clearInterval(m.timer); m.theme = null; },
+  stop() {
+    customTrack.stop();
+    clearInterval(m.timer);
+    m.theme = null;
+  },
   intensity(v: number) { m.target = Math.max(0, Math.min(1, v)); },
-  gate(on: boolean) { m.on = on; }, // Freeze: the band stops dead, and comes back in
+  gate(on: boolean) {
+    m.on = on;
+    if (customSource) {
+      if (on) {
+        musicBus.gain.setTargetAtTime(0.5, audio().currentTime, 0.05);
+      } else {
+        musicBus.gain.setTargetAtTime(0.001, audio().currentTime, 0.05);
+      }
+    }
+  }, // Freeze: the band stops dead, and comes back in
 };
 function schedule() {
   const t = m.theme;

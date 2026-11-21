@@ -1,9 +1,36 @@
-# Romp Demo
+# Romp
 
-**Your body is the controller.** The free public Romp demo includes two camera-controlled games:
+**Your body is the controller.** The full 17-game Romp collection includes camera-controlled motion games across four categories:
 
-- **Run** — lean, jump, and duck through a three-lane endless runner.
-- **Slice** — swipe through fruit and dodge bombs, with Arcade, Classic, and Zen modes.
+### Workouts
+- **Sprint** — run on the spot, knees up. Your pace is your speed. Three heats, flat out.
+- **Jack Attack** — every jumping jack fires the cannon.
+- **Forge** — hold the squat, then strike when the blade glows.
+- **Lumberjack** — wind up and chop across your body.
+- **Rocket** — every squat is an engine burn.
+
+### Arcade
+- **Run** — endless runner. Lean, jump, duck.
+- **Slice** — cut the fruit, dodge the bombs. Arcade, Classic, and Zen modes.
+- **Jab** — punch the pads, squat under the bar.
+- **Goalie** — get a glove to every shot.
+- **Smash** — knock the crate tower down.
+- **Wipe** — scrub the screen clean before the grime creeps back.
+- **Keepy-Uppy** — headers and kicks keep the balloon up.
+- **Leaks** — plug the cracks with your hands, feet, and head.
+
+### Music and Dance
+- **Pulse** — neon tunnel, original songs. Swing, clap, duck.
+- **Beat** — hit the moves on the beat.
+- **Freeze** — dance, then hold dead still.
+
+### Pose
+- **Shape Up** — match the shape before it lands.
+
+### Features & Extras
+- **Warm-up Routine Mode** — "Daily Warm-up Circuit" chaining cardio, rhythm, and power workouts back-to-back with unified scoring.
+- **Custom Audio Support** — upload personal MP3/WAV/OGG music tracks to play during any game with automatic ducking and SFX mixing.
+- **Calibration Assistant** — interactive framing tool in the header to ensure ideal room distance and full visibility of head, hands, and feet before starting.
 
 Play solo, together, or take turns. Stars, stages, activity points, daily quests, and profiles are saved on your device.
 
@@ -49,8 +76,8 @@ close a fist. Click or tap during a round to pause; Escape also pauses.
 
 ## Code map
 
-- `src/main.tsx` — menus, the two-game catalog, profiles, and results.
-- `src/games/run.ts`, `src/games/slice.ts` — the demo games.
+- `src/main.tsx` — menus, the 17-game catalog, profiles, and results.
+- `src/games/` — the 17 games (Run, Slice, Sprint, Jack Attack, Forge, Lumberjack, Rocket, Pulse, Beat, Freeze, Shape Up, Jab, Goalie, Smash, Wipe, Keepy-Uppy, Leaks).
 - `src/pose.ts`, `src/pose.worker.ts` — camera input and MediaPipe tracking, including two-player support.
 - `src/engine.ts` — the persistent PlayCanvas renderer and shared scene tools.
 - `src/kit.ts`, `src/stage.tsx` — round timing, hands, hit testing, and the game shell.
