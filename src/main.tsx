@@ -54,6 +54,12 @@ const GAMES: Game[] = [
   { id: 'rocket', name: 'Rocket', icon: '🚀', tone: ['#8b5cf6', '#3b82f6'], blurb: 'Every squat is an engine burn.', how: 'Squat to fire the rocket engines. The deeper and faster you squat, the more thrust. Steer left and right to dodge asteroids. Reach the highest altitude you can.', maxPlayers: 1, Play: Rocket },
 ];
 const NAMES = Object.fromEntries(GAMES.map((g) => [g.id, g.name]));
+const CATEGORIES: Record<'workouts' | 'arcade' | 'music' | 'pose', string[]> = {
+  workouts: ['sprint', 'jackattack', 'forge', 'lumberjack', 'rocket'],
+  arcade: ['run', 'slice', 'jab', 'goalie', 'smash', 'wipe', 'keepyuppy', 'leaks'],
+  music: ['pulse', 'beat', 'freeze'],
+  pose: ['shapeup'],
+};
 const BADGE_ICON: Record<string, string> = { first: '👟', explorer: '🧭', century: '💯', double: '🔥', streak3: '📅', streak7: '🗓️', streak30: '⚡', stars10: '⭐', stars20: '🌟', stars30: '🌌', flawless: '💎', summit: '🏔️', five: '🖐️', level5: '💪', level10: '🏅', early: '🌅', runner: '🏁' };
 
 const MODES = { solo: 'Solo', together: 'Together', turns: 'Take turns' } as const;
@@ -362,6 +368,7 @@ function App() {
   const [db, setDb] = useState(load);
   const [who, setWho] = useState([0, 1]); // profile index per player slot
   const [mode, setMode] = useState<Mode>('solo');
+  const [category, setCategory] = useState<'all' | 'workouts' | 'arcade' | 'music' | 'pose'>('all');
   const [fx, setFx] = useState(effects.on);
   const [paused, setPaused] = useState(false);
   const [coop, setCoop] = useState(true); // two players: one team by default — it is what brings a couple back; rivals by choice
@@ -546,8 +553,18 @@ function App() {
             </div>
             <button className="primary" onClick={startRoutine}>Start Circuit →</button>
           </div>
+          <div className="row" style={{ marginTop: '0.8rem', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ margin: 0 }}>🎮 Games {category !== 'all' && <span className="dim">({category})</span>}</h2>
+            <div className="seg">
+              <button aria-pressed={category === 'all'} onClick={() => setCategory('all')}>All ({GAMES.length})</button>
+              <button aria-pressed={category === 'workouts'} onClick={() => setCategory('workouts')}>Workouts (5)</button>
+              <button aria-pressed={category === 'arcade'} onClick={() => setCategory('arcade')}>Arcade (8)</button>
+              <button aria-pressed={category === 'music'} onClick={() => setCategory('music')}>Music & Dance (3)</button>
+              <button aria-pressed={category === 'pose'} onClick={() => setCategory('pose')}>Pose (1)</button>
+            </div>
+          </div>
           <div className="cards">
-            {GAMES.filter((g) => g.maxPlayers >= n).map((g, i) => (
+            {GAMES.filter((g) => g.maxPlayers >= n && (category === 'all' || CATEGORIES[category].includes(g.id))).map((g, i) => (
               <button className="card" key={g.id} style={{ ...toneOf(g), ...vars({ '--i': i }) }} disabled={clash} onClick={() => go({ at: 'brief', game: g, stage: open(g), mode: '' })}>
                 <span className="icon">{g.icon}</span>
                 <b>{g.name}</b>
