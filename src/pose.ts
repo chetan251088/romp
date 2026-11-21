@@ -83,8 +83,16 @@ queueMicrotask(() => Object.assign(globalThis, { __romp: { perf, track, tuning, 
 export const sim = new URLSearchParams(globalThis.location?.search ?? '').has('sim');
 
 let nPlayers = 1;
+let trackingActive = true;
 export const playerCount = () => nPlayers;
 let landmarker: PoseLandmarker | undefined;
+export function setTrackingActive(active: boolean) {
+  if (trackingActive === active) return;
+  trackingActive = active;
+  worker?.postMessage({ type: 'idle', on: !active });
+  partner?.postMessage({ type: 'idle', on: !active || nPlayers !== 2 });
+  if (!active) for (const player of players) player.present = false;
+}
 export function setPlayers(n: number) {
   nPlayers = n;
   players[1].present &&= n === 2;
@@ -292,11 +300,17 @@ export async function startPose(video: HTMLVideoElement) {
   const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 1280, height: 720, frameRate: { ideal: 30 } } });
   video.srcObject = stream;
   const cam = stream.getVideoTracks()[0];
-  await video.play();
-  const settings = cam.getSettings();
-  track.camera = `${settings.width}×${settings.height} @${Math.round(settings.frameRate ?? 0)}`;
-  const model = `/models/pose_landmarker_${tuning.model}.task`;
-  if (!(await startWorker(video, model, cam).catch(() => false))) await startInline(video, model);
+  try {
+    await video.play();
+    const settings = cam.getSettings();
+    track.camera = `${settings.width}×${settings.height} @${Math.round(settings.frameRate ?? 0)}`;
+    const model = `/models/pose_landmarker_${tuning.model}.task`;
+    if (!(await startWorker(video, model, cam).catch(() => false))) await startInline(video, model);
+  } catch (error) {
+    for (const track of stream.getTracks()) track.stop();
+    video.srcObject = null;
+    throw error;
+  }
 }
 
 // Not in TypeScript's DOM library yet.
@@ -336,6 +350,7 @@ async function startWorker(video: HTMLVideoElement, model: string, cam: MediaStr
   });
   if (!ready) return w.terminate(), false;
   worker = w;
+  if (!trackingActive) w.postMessage({ type: 'idle', on: true });
   camTrack = cam;
   perf.delegate = `${ready} worker`;
   if (cutout.asked) w.postMessage({ type: 'cut', on: true });
@@ -360,6 +375,10 @@ async function startWorker(video: HTMLVideoElement, model: string, cam: MediaStr
     }
     if (m.type !== 'pose') return;
     busy = false;
+    if (!trackingActive || m.skipped) {
+      waiting?.bitmap.close(); waiting = null;
+      return;
+    }
     if (waiting) { send(waiting); waiting = null; }
     const now = performance.now(), t = m.ts === undefined ? m.t : clock.time(m.ts, m.arrived);
     aspect = m.aspect ?? video.videoWidth / video.videoHeight;
@@ -397,9 +416,10 @@ async function startWorker(video: HTMLVideoElement, model: string, cam: MediaStr
     track.camFps += (1000 / Math.max(1, now - lastCam) - track.camFps) * 0.1;
     lastCam = now;
     if (meta?.captureTime) clock.saw(meta.captureTime);
-    if (!copying) return;
+    if (!copying || !trackingActive) return;
     const t0 = performance.now(), bitmap = await createImageBitmap(video).catch(() => null);
     if (!bitmap) return;
+    if (!trackingActive) { bitmap.close(); return; }
     track.grabMs += (performance.now() - t0 - track.grabMs) * 0.1;
     const frame = { bitmap, t: meta?.captureTime ?? now };
     if (!busy) return send(frame);
@@ -420,7 +440,7 @@ function pairUp(on: boolean) {
   worker?.postMessage(on ? { type: 'half', seat: 0, ...SIDES[0] } : { type: 'half', seat: -1 });
   worker?.postMessage({ type: 'players', n: 1 });
   if (!on) return void partner?.postMessage({ type: 'idle', on: true });
-  if (partner) return void partner.postMessage({ type: 'idle', on: false });
+  if (partner) return void partner.postMessage({ type: 'idle', on: !trackingActive });
   if (!camTrack || typeof MediaStreamTrackProcessor !== 'function') return;
   const w = (partner = new Worker(new URL('./pose.worker.ts', import.meta.url))), clock = frameClock();
   let last = performance.now();
@@ -429,10 +449,11 @@ function pairUp(on: boolean) {
     if (m.type === 'ready') {
       const { readable } = new MediaStreamTrackProcessor({ track: camTrack!.clone(), maxBufferSize: 1 });
       w.postMessage({ type: 'half', seat: 1, ...SIDES[1] });
+      w.postMessage({ type: 'idle', on: !trackingActive || nPlayers !== 2 });
       w.postMessage({ type: 'stream', readable }, [readable as unknown as Transferable]);
       track.partner = m.delegate;
     }
-    if (m.type !== 'pose') return;
+    if (m.type !== 'pose' || !trackingActive || nPlayers !== 2) return;
     const now = performance.now();
     apply(m.landmarks, m.aspect, clock.time(m.ts, m.arrived), 1);
     if (strangers[1] > 20) { strangers[1] = 0; w.postMessage({ type: 'relook' }); }
@@ -473,11 +494,12 @@ async function startInline(video: HTMLVideoElement, model: string) {
   let last = performance.now();
   const tick = () => {
     const now = performance.now();
+    video.requestVideoFrameCallback(tick);
+    if (!trackingActive) { last = now; return; }
     apply(landmarker!.detectForVideo(video, now).landmarks, video.videoWidth / video.videoHeight, now);
     perf.fps += (1000 / (now - last) - perf.fps) * 0.1;
     track.lag += (performance.now() - now - track.lag) * 0.1;
     last = now;
-    video.requestVideoFrameCallback(tick);
   };
   video.requestVideoFrameCallback(tick);
 }

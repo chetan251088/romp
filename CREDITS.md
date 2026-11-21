@@ -16,6 +16,9 @@ Everything under `public/assets/` is **CC0 (public domain)** — no attribution 
 
 The music is not a recording: it is generated live by `src/audio.ts`.
 
+The Swedish clues in `public/family-voice/` are original text synthesized with the Swedish voice from
+[eSpeak NG](https://github.com/espeak-ng/espeak-ng). The game ships the audio clips only.
+
 Models: MediaPipe pose_landmarker (lite, full) and hand_landmarker — Google, Apache 2.0.
 
 Libraries: three.js, React Three Fiber, drei, @react-three/rapier (Rapier physics), @react-three/postprocessing, MediaPipe Tasks Vision.

@@ -1,6 +1,20 @@
 # Romp
 
-**Your body is the controller.** The full 17-game Romp collection includes camera-controlled motion games across four categories:
+Romp has **26 games**. The 17 camera-controlled motion games are joined by nine shared-screen Family Adventures.
+
+### Family Adventures
+
+| Game | Play together |
+| --- | --- |
+| **Snösystrarna** | Find lost things with spoken Swedish clues, help six winter animals, and color their scarves. The two sisters can save their names, coat colors, and clue difficulty. |
+| **Mural Studio** | Draw on blank paper or a coloring scene with two brushes. Save up to six pictures locally or download a PNG. |
+| **Snow Sled Relay** | Steer through three lanes with gentle leans, the keyboard, or touch. The navigator calls out the route. Swap at the cabin checkpoint. |
+| **Bridge Builders** | Add up beam lengths, place supports, and test bridges with a loaded sled. |
+| **Robot Post** | Make a program from arrows and repeat cards. Predict where it stops, run it, and debug the route. |
+| **Curiosity Lab** | Change one variable, predict the outcome, and compare paired virtual experiments. |
+| **Moon Base** | Plan a route, collect two samples, and get the rover home before the battery runs out. |
+| **You’re the Teacher** | Give a math, Swedish, pattern, or drawing assignment, offer a hint, and swap roles. |
+| **Dad & Daughters Quest** | Rotate through captain, challenger, and coach in a three-person Swedish, drawing, and posing challenge. |
 
 ### Workouts
 - **Sprint** — run on the spot, knees up. Your pace is your speed. Three heats, flat out.
@@ -53,6 +67,14 @@ available under **Tracking → Press with**. Touch, mouse, and keyboard controls
 Use landscape orientation with the camera facing the room. On a TV, enable Game mode and turn motion smoothing off.
 Use a well-lit room so the camera can follow your hands.
 
+### Play Family Adventures on a TV
+
+1. Open the game in Chrome on the device with the camera. Choose **Play without camera** for Family Adventures, or **Start with camera** for motion play. In **Snow Sled Relay**, choose **Enable camera for leaning** from the briefing if you started without it.
+2. On desktop Chrome, open **⋮ → Cast, save and share → Cast**, then select your TV. Use the **Fullscreen** and **Keep screen awake** controls in Romp. Keep the game tab visible during a round. [Google’s Chrome casting guide](https://support.google.com/chrome/answer/3228332)
+3. In **Snow Sled Relay**, open **Latency stats** to see the local render rate and, with the camera on, tracking speed. Use **Camera preview** when you want the live view included next to the race. If the local screen responds well and the TV feels delayed, try a wired HDMI or USB-C display connection for motion games. If the local camera controls also feel slow, try the **Lite** model under **Tracking** and calibrate in good light.
+
+The story, drawing, and puzzle games use the tab’s touch, mouse, or pen input. On a multitouch tablet, two touches can draw with separate brushes in Mural Studio. On a laptop, switch brushes between turns. The games include prerecorded Swedish clues as tab audio, so they can play on devices without a Swedish system voice.
+
 ## Build and develop
 
 Requires Node.js 22+ and Git.
@@ -76,21 +98,25 @@ close a fist. Click or tap during a round to pause; Escape also pauses.
 
 ## Code map
 
-- `src/main.tsx` — menus, the 17-game catalog, profiles, and results.
+- `src/main.tsx` — menus, the 26-game catalog, profiles, and results.
 - `src/games/` — the 17 games (Run, Slice, Sprint, Jack Attack, Forge, Lumberjack, Rocket, Pulse, Beat, Freeze, Shape Up, Jab, Goalie, Smash, Wipe, Keepy-Uppy, Leaks).
+- `src/family/` — the nine Family Adventures, their shared controls, and the Swedish clue text.
 - `src/pose.ts`, `src/pose.worker.ts` — camera input and MediaPipe tracking, including two-player support.
 - `src/engine.ts` — the persistent PlayCanvas renderer and shared scene tools.
 - `src/kit.ts`, `src/stage.tsx` — round timing, hands, hit testing, and the game shell.
 - `src/meta.ts`, `src/stats.ts` — progression and local saved sessions. Existing saves are preserved.
 - `src/audio.ts` — sound effects and procedural background music.
 
-React draws the menus and HUD; PlayCanvas draws the games on one persistent WebGL canvas. Each game's code loads on
-demand. Camera processing stays on the device, and this demo does not upload tracking recordings or measurements.
+React draws menus, puzzle boards, and HUDs. Motion arcade games use the shared PlayCanvas renderer. The family drawing
+and sled games use small 2D canvases. Each game loads on demand, and camera analysis pauses during story, drawing, and puzzle rounds.
+Camera processing and family saves stay on the device.
 
 ## Assets
 
 Third-party assets retain their own licenses. See `CREDITS.md` and `public/assets/CREDITS.md` for attribution.
 `tools/models.mjs` can search and import CC0/CC-BY models with source and license records.
+To regenerate the Swedish recordings after editing clues, run `node tools/family-voice.mjs <path-to-espeak-ng.js>`
+with the JS and data files from the extracted [eSpeak NG Emscripten package](https://github.com/echogarden-project/espeak-ng-emscripten).
 
 ## License
 

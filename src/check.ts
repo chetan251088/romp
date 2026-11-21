@@ -4,8 +4,12 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { assignSlots, frameClock, handInZone, isAir, isLow, palm, leanOf, limbAngles, OneEuro, poseMatch, tuning } from './pose.ts';
 import { summary, DAY_GOAL } from './stats.ts';
 import { STARS, STAGES, BADGES, badgesOf, bestStars, dailyChallenges, levelOf, sessionXp, starGoals, starsFor, unlockedStage, variantOf, xpOf } from './meta.ts';
+import { FAMILY_IDS } from './family/catalog.ts';
+import { beamCapacity, BRIDGE_BLUEPRINTS, GRID_MOVES, gridStep, MOON_BASE, MOON_MAPS, MOON_SIZE, ROBOT_ROUTES } from './family/puzzles.ts';
+import { clipName, spokenClues } from './family/swedish.ts';
 
-const ALL_GAMES = ['beat', 'forge', 'freeze', 'goalie', 'jab', 'jackattack', 'keepyuppy', 'leaks', 'lumberjack', 'pulse', 'rocket', 'run', 'shapeup', 'slice', 'smash', 'sprint', 'wipe'].sort();
+const MOTION_GAMES = ['beat', 'forge', 'freeze', 'goalie', 'jab', 'jackattack', 'keepyuppy', 'leaks', 'lumberjack', 'pulse', 'rocket', 'run', 'shapeup', 'slice', 'smash', 'sprint', 'wipe'].sort();
+const ALL_GAMES = [...MOTION_GAMES, ...FAMILY_IDS].sort();
 
 // A body: shoulders 0.1 apart (camera frame, aspect 1) centred at cx, wrists wherever we put them.
 const body = (cx: number, sw = 0.1, wrist = { x: cx, y: 0.5 }) => {
@@ -95,6 +99,8 @@ assert.deepEqual([levelOf(0).level, levelOf(59).level, levelOf(60).level, levelO
 assert.ok(badgesOf(log, 'A').includes('first') && badgesOf(log, 'A').includes('century'));
 const allPlayedLog = [...log, ...ALL_GAMES.filter((g) => g !== 'slice' && g !== 'run').map((g) => played(g, 1, 10))];
 assert.ok(badgesOf(allPlayedLog, 'A').includes('explorer'));
+assert.ok(badgesOf(allPlayedLog.filter((s) => MOTION_GAMES.includes(s.game)), 'A').includes('explorer'));
+assert.ok(badgesOf(FAMILY_IDS.map((g) => played(g, 1, 10)), 'A').includes('explorer'));
 assert.ok(!badgesOf([played('slice', 1, 100, 99)], 'A').includes('century'));
 assert.ok(badgesOf([played('slice', 1, 100, 100)], 'A').includes('century'));
 assert.ok(!badgesOf(log, 'A').includes('explorer'));
@@ -129,9 +135,53 @@ assert.ok(daily[0].have === Math.min(daily[0].goal, 120));
 
 // The catalog must offer only playable games, goals, and attainable badges.
 assert.deepEqual(Object.keys(STARS).sort(), ALL_GAMES);
-assert.deepEqual(readdirSync(new URL('./games/', import.meta.url)).sort(), ALL_GAMES.map((g) => `${g}.ts`));
+assert.deepEqual(readdirSync(new URL('./games/', import.meta.url)).sort(), MOTION_GAMES.map((g) => g + '.ts'));
 const shell = readFileSync(new URL('./main.tsx', import.meta.url), 'utf8');
-assert.deepEqual([...shell.matchAll(/import\('\.\/games\/([^']+)\.ts'\)/g)].map((m) => m[1]).sort(), ALL_GAMES);
+assert.deepEqual([...shell.matchAll(/import\('\.\/games\/([^']+)\.ts'\)/g)].map((m) => m[1]).sort(), MOTION_GAMES);
+const familyShell = readFileSync(new URL('./family/shell.tsx', import.meta.url), 'utf8');
+assert.deepEqual([...familyShell.matchAll(/^\s*(\w+): \(\) => import\('\.\/.+\.tsx'\),$/gm)].map((m) => m[1]).sort(), [...FAMILY_IDS].sort());
+for (const game of FAMILY_IDS) for (let stage = 1; stage <= STAGES; stage++) {
+  assert.deepEqual(starGoals(game, stage, 'team'), starGoals(game, stage));
+  assert.equal(starsFor(game, stage, Math.round(100 * (1 + (stage - 1) * 0.3)), 'team'), 3);
+}
+const clips = spokenClues.map(clipName).sort();
+assert.equal(new Set(clips).size, clips.length, 'Swedish phrases have overlapping audio filenames');
+assert.deepEqual(readdirSync(new URL('../public/family-voice/', import.meta.url)).sort(), clips);
+
+// A stage must fit its move cards, bridge pieces, or rover battery even on the hardest map.
+for (const { size, start, goal, walls } of ROBOT_ROUTES) {
+  const visited = new Set([start]), queue = [{ at: start, distance: 0 }];
+  for (const { at, distance } of queue) {
+    if (distance === 12) continue;
+    for (let move = 0; move < GRID_MOVES.length; move++) {
+      const next = gridStep(at, move, size);
+      if (next < 0 || walls.includes(next) || visited.has(next)) continue;
+      visited.add(next); queue.push({ at: next, distance: distance + 1 });
+    }
+  }
+  assert.ok(visited.has(goal), 'Robot cannot reach its mailbox');
+}
+for (const { span, load, beams, piers } of BRIDGE_BLUEPRINTS) {
+  const fits = (remaining: number, pieces: number): boolean => remaining === 0 ||
+    (remaining > 0 && pieces > 0 && beams.some((beam) => beamCapacity(beam) >= load && fits(remaining - beam, pieces - 1)));
+  assert.ok(fits(span, piers + 1), 'Bridge cannot carry its load across the span');
+}
+for (const { battery, samples, craters, rough } of MOON_MAPS) {
+  const queue = [{ at: MOON_BASE, used: 0, found: 0 }];
+  const visited = new Map<string, number>();
+  for (const { at, used, found } of queue) {
+    for (let move = 0; move < GRID_MOVES.length; move++) {
+      const next = gridStep(at, move, MOON_SIZE);
+      if (next < 0 || craters.includes(next)) continue;
+      const cost = used + (rough.includes(next) ? 2 : 1);
+      const collected = found | (samples.includes(next) ? 1 << samples.indexOf(next) : 0);
+      const key = next + ':' + collected;
+      if (cost > battery || cost >= (visited.get(key) ?? Infinity)) continue;
+      visited.set(key, cost); queue.push({ at: next, used: cost, found: collected });
+    }
+  }
+  assert.ok(visited.has(MOON_BASE + ':3'), 'Moon rover cannot collect both samples and return to base');
+}
 const maxStars = Object.keys(STARS).length * STAGES * 3;
 const completed = Object.keys(STARS).flatMap((game) => Array.from({ length: STAGES }, (_, i) => played(game, i + 1, 100000)));
 assert.ok(badgesOf(completed, 'A').includes('explorer'));
@@ -139,7 +189,7 @@ for (const badge of BADGES.filter((b) => b.id.startsWith('stars'))) {
   assert.ok(Number(badge.id.slice(5)) <= maxStars);
   assert.ok(badgesOf(completed, 'A').includes(badge.id));
 }
-// Every day must be completable using only the two demo games, even with old game history.
+// Every day must be completable using the catalog, even with old game history.
 for (let day = 1; day <= 366; day++) {
   const now = new Date(2026, 0, day, 12).getTime();
   const games = Object.keys(STARS).flatMap((game) => [0, 1].map(() => ({ ...played(game, 1, 100000, 100), t: now })));

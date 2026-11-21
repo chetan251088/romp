@@ -1,0 +1,15 @@
+export const FAMILY_GAMES = {
+  snosystrarna: { name: 'Snösystrarna', icon: '🦊', tone: ['#3285a6', '#5360a9'], blurb: 'Follow Swedish clues and help animals in the snow.', how: 'Listen to the clue and find the right picture. Pass to your sister to follow the trail. Help the animal together and choose a scarf color.', motion: false },
+  mural: { name: 'Mural Studio', icon: '🎨', tone: ['#b54286', '#623fa5'], blurb: 'Make one picture with two brushes.', how: 'Choose a scene and a brush for each artist. Draw with touch, mouse or a pen. Save your favorite pictures to the gallery.', motion: false },
+  sled: { name: 'Snow Sled Relay', icon: '🛷', tone: ['#157d96', '#304ca2'], blurb: 'Steer through the snow and deliver supplies together.', how: 'Lean gently or use the arrow keys or touch buttons to steer. Your navigator watches the route ahead. Swap at the checkpoint and bring the supplies home.', motion: true },
+  bridge: { name: 'Bridge Builders', icon: '🌉', tone: ['#368475', '#22516e'], blurb: 'Build a bridge and see what it can carry.', how: 'Choose beams to span the river. Your partner adds supports and predicts what will happen. Roll a sled over the bridge to test it.', motion: false },
+  robotpost: { name: 'Robot Post', icon: '🤖', tone: ['#634bc6', '#325998'], blurb: 'Give a little robot directions to deliver its mail.', how: 'Build a program with arrows and repeat cards. Your partner predicts where the robot will stop. Watch it run and fix the route together.', motion: false },
+  curiosity: { name: 'Curiosity Lab', icon: '🔬', tone: ['#208372', '#4151a0'], blurb: 'Predict, test, and change one thing at a time.', how: 'Pick a prediction and run two tests side by side. Swap roles and try a different variable. Compare what happened before writing your finding.', motion: false },
+  moonbase: { name: 'Moon Base', icon: '🌙', tone: ['#4756a8', '#70479b'], blurb: 'Find samples and bring your rover home on one battery.', how: 'The pilot plans around rough ground and craters. The scientist collects samples and checks the battery. Get back to base together.', motion: false },
+  teacher: { name: 'You’re the Teacher', icon: '🏫', tone: ['#9a4e77', '#72467b'], blurb: 'Set a mini assignment and trade places.', how: 'The teacher chooses a task. The student solves it or asks for a hint. Give specific encouragement, then swap jobs.', motion: false },
+  dadquest: { name: 'Dad & Daughters Quest', icon: '💛', tone: ['#a95369', '#8e4b46'], blurb: 'Give Dad a challenge and take turns leading the family.', how: 'Take turns as the captain, challenger and coach. Try a Swedish clue, a doodle, or a silly pose together. Swap so everyone leads.', motion: false },
+} satisfies Record<string, { name: string; icon: string; tone: [string, string]; blurb: string; how: string; motion: boolean }>;
+
+export type FamilyGameId = keyof typeof FAMILY_GAMES;
+export const FAMILY_IDS = Object.keys(FAMILY_GAMES) as FamilyGameId[];
+export const FAMILY_STARS: [number, number, number] = [20, 55, 90];

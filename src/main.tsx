@@ -2,12 +2,15 @@
 // Driven by hand, touch or keyboard. A tap or click during a game pauses it and offers the way home.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
-import { grip, perf, players, setPlayers, sim, startPose, track, tuning } from './pose.ts';
+import { grip, perf, players, setPlayers, setTrackingActive, sim, startPose, track, tuning } from './pose.ts';
 import { DAY_GOAL, load, save, summary, type Session } from './stats.ts';
 import { BADGES, CHALLENGE_XP, STAGES, badgesOf, bestScore, bestStars, dailyChallenges, levelOf, sessionXp, starGoals, starsFor, totalStars, unlockedStage, variantOf, xpOf } from './meta.ts';
 import { loadAudio, customTrack } from './audio.ts';
 import { PLAYER_COLORS, Shell, audio, effects, jingle, play, say, sfx, type Playable } from './stage.tsx';
-// The public demo includes two games, loaded on demand.
+import { FAMILY_GAMES, FAMILY_IDS } from './family/catalog.ts';
+import { familyPlay, type FamilyPlayable } from './family/shell.tsx';
+import { toggleFullscreen, useTvControls } from './family/tv.ts';
+// Motion games are loaded on demand.
 const Slice = play(() => import('./games/slice.ts')), Run = play(() => import('./games/run.ts'));
 const Sprint = play(() => import('./games/sprint.ts')), JackAttack = play(() => import('./games/jackattack.ts'));
 const Forge = play(() => import('./games/forge.ts')), Lumberjack = play(() => import('./games/lumberjack.ts'));
@@ -21,10 +24,12 @@ const KeepyUppy = play(() => import('./games/keepyuppy.ts')), Leaks = play(() =>
 
 type GameMode = { id: string; name: string; blurb: string }; // id '' is the standard mode
 // `team`: the game knows how to be played by two as one team (a shared score); otherwise two players are always rivals.
-type Game = { id: string; name: string; icon: string; tone: [string, string]; blurb: string; how: string; maxPlayers: 1 | 2; Play: Playable; modes?: GameMode[]; team?: boolean; crew?: boolean }; // crew: two players are ALWAYS one team (there is no versus)
+type Game = { id: string; name: string; icon: string; tone: [string, string]; blurb: string; how: string; maxPlayers: 1 | 2; modes?: GameMode[]; team?: boolean; crew?: boolean } &
+  ({ family: true; motion: boolean; Play: FamilyPlayable } | { family?: false; Play: Playable }); // crew: two players are ALWAYS one team
 // The library. A new game = one component + one row here (+ its star goals in meta.ts). maxPlayers 2 only for
 // compact-footprint games (PLAN §3); a wide game is still playable by two through "Take turns".
 const GAMES: Game[] = [
+  ...FAMILY_IDS.map((id): Game => ({ id, ...FAMILY_GAMES[id], family: true, maxPlayers: 2, Play: familyPlay(id), team: true, crew: true })),
   // MUSIC & DANCE
   { id: 'pulse', name: 'Pulse', icon: '🎵', tone: ['#a855f7', '#ec4899'], blurb: 'Hit the music. A neon tunnel, three songs.', how: 'Swing, clap and duck to the beat. Each move lights the tunnel. Chain them without missing for a combo. The music drives everything.', maxPlayers: 2, Play: Pulse },
   // ARCADE
@@ -54,12 +59,14 @@ const GAMES: Game[] = [
   { id: 'rocket', name: 'Rocket', icon: '🚀', tone: ['#8b5cf6', '#3b82f6'], blurb: 'Every squat is an engine burn.', how: 'Squat to fire the rocket engines. The deeper and faster you squat, the more thrust. Steer left and right to dodge asteroids. Reach the highest altitude you can.', maxPlayers: 1, Play: Rocket },
 ];
 const NAMES = Object.fromEntries(GAMES.map((g) => [g.id, g.name]));
-const CATEGORIES: Record<'workouts' | 'arcade' | 'music' | 'pose', string[]> = {
+const CATEGORIES = {
+  family: FAMILY_IDS,
   workouts: ['sprint', 'jackattack', 'forge', 'lumberjack', 'rocket'],
   arcade: ['run', 'slice', 'jab', 'goalie', 'smash', 'wipe', 'keepyuppy', 'leaks'],
   music: ['pulse', 'beat', 'freeze'],
   pose: ['shapeup'],
-};
+} satisfies Record<string, readonly string[]>;
+const CATEGORY_LABELS = { family: 'Family Adventures', workouts: 'Workouts', arcade: 'Arcade', music: 'Music & Dance', pose: 'Pose' };
 const BADGE_ICON: Record<string, string> = { first: '👟', explorer: '🧭', century: '💯', double: '🔥', streak3: '📅', streak7: '🗓️', streak30: '⚡', stars10: '⭐', stars20: '🌟', stars30: '🌌', flawless: '💎', summit: '🏔️', five: '🖐️', level5: '💪', level10: '🏅', early: '🌅', runner: '🏁' };
 
 const MODES = { solo: 'Solo', together: 'Together', turns: 'Take turns' } as const;
@@ -368,7 +375,10 @@ function App() {
   const [db, setDb] = useState(load);
   const [who, setWho] = useState([0, 1]); // profile index per player slot
   const [mode, setMode] = useState<Mode>('solo');
-  const [category, setCategory] = useState<'all' | 'workouts' | 'arcade' | 'music' | 'pose'>('all');
+  const [category, setCategory] = useState<'all' | keyof typeof CATEGORIES>('all');
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const tv = useTvControls(screen.at !== 'start');
   const [fx, setFx] = useState(effects.on);
   const [paused, setPaused] = useState(false);
   const [coop, setCoop] = useState(true); // two players: one team by default — it is what brings a couple back; rivals by choice
@@ -376,6 +386,9 @@ function App() {
   const audioFileRef = useRef<HTMLInputElement>(null);
   const [customAudioName, setCustomAudioName] = useState(customTrack.name);
   const n = mode === 'together' ? 2 : 1; // bodies tracked at once; "turns" is two people, one at a time
+  const shared = (game: Game) => !!game.family && !game.motion && mode !== 'solo';
+  const gamePlayers = (game: Game) => shared(game) ? 2 : n;
+  const quietRound = screen.at === 'play' && !!screen.game.family && !screen.game.motion;
   const energy0 = useRef([0, 0]);
   const name = (slot: number) => db.profiles[who[slot]];
 
@@ -411,10 +424,17 @@ function App() {
   const shell = useMemo(() => ({ paused, pause: () => { setPaused(true); void audio().suspend(); } }), [paused]);
   const resume = () => { setPaused(false); void audio().resume(); };
   useEffect(() => {
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && shell.pause();
+    if (screen.at !== 'play' || paused) return;
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') shell.pause(); };
+    const visibility = () => { if (document.hidden) shell.pause(); };
     addEventListener('keydown', key);
-    return () => removeEventListener('keydown', key);
-  }, [shell]);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      removeEventListener('keydown', key);
+      document.removeEventListener('visibilitychange', visibility);
+    };
+  }, [screen.at, paused, shell]);
+  useEffect(() => { setTrackingActive(!quietRound || paused); }, [quietRound, paused]);
 
   const update = (next: typeof db) => { save(next); setDb(next); };
   const go = (s: Screen) => {
@@ -426,23 +446,42 @@ function App() {
   // Tracker settings live in localStorage and are read when the tracker starts, so changing one restarts the app.
   const setTracker = (key: string, value: string) => { try { localStorage.setItem(key, value); } catch { /* private mode */ } location.reload(); };
   const toggleFx = () => { effects.on = !fx; setFx(!fx); try { localStorage.setItem('romp.fx', fx ? 'off' : 'on'); } catch { /* private mode */ } };
-  const start = async () => {
-    // Fullscreen first: it needs the tap's user-activation, which is gone once the camera prompt and model load finish.
-    try { void document.documentElement.requestFullscreen().catch(() => { }); } catch { /* not supported — play windowed */ }
+  const openAudio = () => {
     void audio().resume(); // same reason: games are later started by a hand-dwell, which is not a user gesture
     void loadAudio(); // samples decode in the background; until then sounds fall back to synth blips
+  };
+  const enableCamera = async () => {
+    if (cameraReady || cameraLoading) return cameraReady;
+    setError('');
+    setCameraLoading(true);
     try { await startPose(video.current!); } catch (e) {
-      return setError(`Camera or tracker failed: ${(e as Error).message}. Allow the camera — and if this is the http://192.168… address, add it under chrome://flags → “Insecure origins treated as secure” first.`);
+      setError(`Camera unavailable. ${(e as Error).message} Open the game on localhost or HTTPS and allow the camera in Chrome.`);
+      return false;
+    } finally {
+      setCameraLoading(false);
     }
+    setCameraReady(true);
+    return true;
+  };
+  const start = async () => {
+    if (!document.fullscreenElement) toggleFullscreen();
+    openAudio();
+    if (await enableCamera()) go({ at: 'home' });
+  };
+  const startWithoutCamera = () => {
+    openAudio();
+    setError('');
+    chooseMode('together');
+    setCategory('family');
     go({ at: 'home' });
   };
   // Two people on stage play as one team where the game knows how; what they score is then kept apart from solo scores.
-  const teamOf = (game: Game) => n === 2 && !!game.team && (coop || !!game.crew);
+  const teamOf = (game: Game) => gamePlayers(game) === 2 && !!game.team && (coop || !!game.crew);
   const finish = (run: Round, gameScores: number[], gameNotes: string[][] = []) => {
     const team = teamOf(run.game), variant = variantOf(run.mode, team);
-    const earned = gameScores.map((_, i) => Math.round((players[i].energy - energy0.current[i]) / tuning.energyPerPoint));
+    const earned = gameScores.map((_, i) => run.game.family && !run.game.motion ? 0 : Math.max(0, Math.round((players[i].energy - energy0.current[i]) / tuning.energyPerPoint)));
     const scores = [...run.scores, ...gameScores], points = [...run.points, ...earned], notes = [...run.notes, ...gameScores.map((_, i) => gameNotes[i] ?? [])];
-    if (mode === 'turns' && run.turn === 0) return go({ ...run, at: 'next', turn: 1, scores, points, notes });
+    if (mode === 'turns' && run.turn === 0 && !shared(run.game)) return go({ ...run, at: 'next', turn: 1, scores, points, notes });
 
     // Book the round one player at a time, comparing each player's progress before and after their own row lands.
     const t = Date.now(), id = run.game.id;
@@ -490,16 +529,19 @@ function App() {
   return (
     <Shell.Provider value={shell}>
       <video className={screen.at === 'tracking' ? 'mirror bright' : 'mirror'} ref={video} muted playsInline />
-      {screen.at !== 'tracking' && <Backdrop ingame={screen.at === 'play'} />}
+      {screen.at !== 'tracking' && !(screen.at === 'play' && screen.game.family) && <Backdrop ingame={screen.at === 'play'} />}
       {screen.at === 'start' && (
         <div className="screen" style={{ alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: '2rem' }}>
           <Logo huge />
-          <h2>Romp · 17 Games</h2>
-          <p className="dim">Your body is the controller. Workouts, arcade, dance and pose games.</p>
+          <h2>Romp · {GAMES.length} Games</h2>
+          <p className="dim">Motion games, snowy adventures, creative play and puzzles for the whole family.</p>
           <div className="row" style={{ justifyContent: 'center' }}>
             {['📺 Stand the tablet under the TV', '🚶 Step back till your whole body shows', '✊ Point at a button, close your fist to press'].map((t) => <span className="goal" key={t}>{t}</span>)}
           </div>
-          <button className="primary giant" onClick={start}>Start</button>
+          <div className="row" style={{ justifyContent: 'center' }}>
+            <button className="primary giant" disabled={cameraLoading} onClick={start}>{cameraLoading ? 'Starting camera…' : 'Start with camera'}</button>
+            <button className="giant" disabled={cameraLoading} onClick={startWithoutCamera}>Play without camera</button>
+          </div>
           {error && <p className="error">{error}</p>}
         </div>
       )}
@@ -507,15 +549,18 @@ function App() {
         <div className="screen">
           <div className="row">
             <Logo /><span className="pill">Demo</span>
-            <p className="dim num grow" style={{ paddingLeft: '1rem' }}><Fps /></p>
+            {cameraReady && <p className="dim num grow" style={{ paddingLeft: '1rem' }}><Fps /></p>}
             <button className="ghost" onClick={toggleFx}>✨ Glow {fx ? 'on' : 'off'}</button>
-            <button className="ghost" onClick={() => go({ at: 'calibrate' })}>📏 Calibrate</button>
+            {document.fullscreenEnabled && <button className="ghost" onClick={toggleFullscreen}>{tv.fullscreen ? 'Exit fullscreen' : 'Fullscreen'}</button>}
+            {navigator.wakeLock && <button className="ghost" aria-pressed={tv.keepAwake} onClick={() => tv.setKeepAwake(!tv.keepAwake)}>Keep screen awake</button>}
+            {cameraReady ? <button className="ghost" onClick={() => go({ at: 'calibrate' })}>📏 Calibrate</button> :
+              <button className="ghost" disabled={cameraLoading} onClick={() => void enableCamera()}>{cameraLoading ? 'Starting camera…' : 'Enable camera'}</button>}
             <button className="ghost" onClick={() => audioFileRef.current?.click()}>
               🎵 {customAudioName ? `Music: ${customAudioName}` : 'Custom Music'}
             </button>
             {customAudioName && <button className="ghost" title="Revert to default music" onClick={clearCustomAudio}>✕</button>}
             <input type="file" ref={audioFileRef} accept="audio/*" style={{ display: 'none' }} onChange={handleAudioUpload} />
-            <button className="ghost" onClick={() => go({ at: 'tracking' })}>🎯 Tracking</button>
+            {cameraReady && <button className="ghost" onClick={() => go({ at: 'tracking' })}>🎯 Tracking</button>}
             <button className="ghost" onClick={() => go({ at: 'badges' })}>🏅 Badges</button>
             <button className="ghost" onClick={() => go({ at: 'stats' })}>📊 Stats</button>
           </div>
@@ -554,22 +599,22 @@ function App() {
             <button className="primary" onClick={startRoutine}>Start Circuit →</button>
           </div>
           <div className="row" style={{ marginTop: '0.8rem', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0 }}>🎮 Games {category !== 'all' && <span className="dim">({category})</span>}</h2>
+            <h2 style={{ margin: 0 }}>{category === 'all' ? '🎮 Games' : CATEGORY_LABELS[category]}</h2>
             <div className="seg">
               <button aria-pressed={category === 'all'} onClick={() => setCategory('all')}>All ({GAMES.length})</button>
-              <button aria-pressed={category === 'workouts'} onClick={() => setCategory('workouts')}>Workouts (5)</button>
-              <button aria-pressed={category === 'arcade'} onClick={() => setCategory('arcade')}>Arcade (8)</button>
-              <button aria-pressed={category === 'music'} onClick={() => setCategory('music')}>Music & Dance (3)</button>
-              <button aria-pressed={category === 'pose'} onClick={() => setCategory('pose')}>Pose (1)</button>
+              {(Object.keys(CATEGORIES) as (keyof typeof CATEGORIES)[]).map((id) =>
+                <button key={id} aria-pressed={category === id} onClick={() => setCategory(id)}>{CATEGORY_LABELS[id]} ({CATEGORIES[id].length})</button>
+              )}
             </div>
           </div>
+          {error && <p className="error" role="alert">{error}</p>}
           <div className="cards">
-            {GAMES.filter((g) => g.maxPlayers >= n && (category === 'all' || CATEGORIES[category].includes(g.id))).map((g, i) => (
+            {GAMES.filter((g) => g.maxPlayers >= n && (category === 'all' || (CATEGORIES[category] as readonly string[]).includes(g.id))).map((g, i) => (
               <button className="card" key={g.id} style={{ ...toneOf(g), ...vars({ '--i': i }) }} disabled={clash} onClick={() => go({ at: 'brief', game: g, stage: open(g), mode: '' })}>
                 <span className="icon">{g.icon}</span>
                 <b>{g.name}</b>
                 <small>{g.blurb}</small>
-                <span className="meta num"><span className="pill">Stage {open(g)}</span><Stars n={bestStars(db.sessions, name(0), g.id, open(g))} /></span>
+                <span className="meta num"><span className="pill">Stage {open(g)}</span><Stars n={bestStars(db.sessions, name(0), g.id, open(g), variantOf('', teamOf(g)))} /></span>
               </button>
             ))}
           </div>
@@ -606,13 +651,27 @@ function App() {
                   {starGoals(game.id, screen.stage, variant).map((goal, k) => <span className="goal" key={k}><Stars n={k + 1} /> {goal}</span>)}
                   <span className="dim">Two stars open the next stage · best here {bestScore(db.sessions, name(0), game.id, screen.stage, variant)}</span>
                 </div>
-                <div className="row"><button className="primary giant" onClick={() => play(game, Math.min(screen.stage, opened), screen.mode)}>Play</button></div>
+                <div className="row">
+                  {(game.family || cameraReady) && <button className="primary giant" disabled={cameraLoading} onClick={() => play(game, Math.min(screen.stage, opened), screen.mode)}>Play</button>}
+                  {!cameraReady && (!game.family || game.motion) &&
+                    <button className={game.family ? '' : 'primary giant'} disabled={cameraLoading} onClick={() => void enableCamera()}>{cameraLoading ? 'Starting camera…' : game.family ? 'Enable camera for leaning' : 'Enable camera'}</button>}
+                </div>
+                {error && <p className="error" role="alert">{error}</p>}
               </div>
             </div>
           </div>
         );
       })()}
-      {screen.at === 'play' && <screen.game.Play key={screen.turn} n={n} stage={screen.stage} mode={screen.mode} team={teamOf(screen.game)} best={bestScore(db.sessions, name(mode === 'turns' ? screen.turn : 0), screen.game.id, screen.stage, variantOf(screen.mode, teamOf(screen.game)))} onEnd={(scores, notes) => finish(screen, scores, notes)} />}
+      {screen.at === 'play' && (() => {
+        const { game } = screen, team = teamOf(game);
+        const current = mode === 'turns' && !shared(game) ? screen.turn : 0;
+        const props = { n: gamePlayers(game), stage: screen.stage, mode: screen.mode, team,
+          best: bestScore(db.sessions, name(current), game.id, screen.stage, variantOf(screen.mode, team)),
+          onEnd: (scores: number[], notes?: string[][]) => finish(screen, scores, notes) };
+        return game.family ?
+          <game.Play key={screen.turn} {...props} camera={cameraReady && !sim} names={mode === 'turns' && !shared(game) ? [name(current)] : [name(0), name(1)]} /> :
+          <game.Play key={screen.turn} {...props} />;
+      })()}
       {screen.at === 'play' && paused && (
         <div className="pause">
           <div className="panel">
@@ -773,8 +832,8 @@ function App() {
           </div>
         </div>
       )}
-      {screen.at !== 'start' && screen.at !== 'tracking' && <Presence small={screen.at === 'play'} />}
-      {((screen.at !== 'play' && screen.at !== 'start') || paused) && <HandCursor />}
+      {cameraReady && screen.at !== 'start' && screen.at !== 'tracking' && !quietRound && <Presence small={screen.at === 'play'} />}
+      {cameraReady && ((screen.at !== 'play' && screen.at !== 'start') || paused) && <HandCursor />}
     </Shell.Provider>
   );
 }

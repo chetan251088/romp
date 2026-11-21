@@ -1,6 +1,7 @@
 // Progression: stars, stages, XP and levels, achievements, daily challenges.
 // Everything is *derived* from the list of sessions — there is no second copy of progress to fall out of sync.
 import { DAY_GOAL, summary, type Session } from './stats.ts';
+import { FAMILY_GAMES, FAMILY_IDS, FAMILY_STARS } from './family/catalog.ts';
 
 // Score needed for 1, 2 and 3 stars at stage 1. Guesses until real scores come in — this table is the tuning knob.
 export const STARS: Record<string, [number, number, number]> = {
@@ -11,15 +12,17 @@ export const STARS: Record<string, [number, number, number]> = {
   shapeup: [200, 500, 900],
   jab: [200, 500, 900], goalie: [150, 350, 650], smash: [200, 500, 900],
   wipe: [200, 450, 800], keepyuppy: [100, 300, 600], leaks: [150, 400, 750],
+  ...Object.fromEntries(FAMILY_IDS.map((id) => [id, FAMILY_STARS])),
 };
 export const STAGES = 5;
+const motionGameIds = Object.keys(STARS).filter((id) => !Object.hasOwn(FAMILY_GAMES, id));
 export const hardness = (stage: number) => 1 + (stage - 1) * 0.22; // games multiply speeds and spawn rates by this
 // A game's other modes have their own goals; a team of two is asked for a bit less than twice what one player is.
 export const MODE_STARS: Record<string, [number, number, number]> = { 'slice:classic': [30, 70, 120], 'slice:zen': [40, 70, 100] };
 export const variantOf = (mode: string, team: boolean) => [mode, team ? 'team' : ''].filter(Boolean).join('+');
 export const starGoals = (game: string, stage: number, variant = '') => {
   const team = variant.endsWith('team'), mode = variant.replace(/\+?team$/, '');
-  return ((mode && MODE_STARS[`${game}:${mode}`]) || STARS[game] || [10, 20, 30]).map((v) => Math.round(v * (1 + (stage - 1) * 0.3) * (team ? 1.8 : 1)));
+  return ((mode && MODE_STARS[`${game}:${mode}`]) || STARS[game] || [10, 20, 30]).map((v) => Math.round(v * (1 + (stage - 1) * 0.3) * (team && !Object.hasOwn(FAMILY_GAMES, game) ? 1.8 : 1)));
 };
 export const starsFor = (game: string, stage: number, score: number, variant = '') => starGoals(game, stage, variant).filter((goal) => score >= goal).length;
 
@@ -35,7 +38,9 @@ export function unlockedStage(sessions: Session[], who: string, game: string, va
   return stage;
 }
 export const totalStars = (sessions: Session[], who: string) =>
-  Object.keys(STARS).reduce((sum, game) => sum + Array.from({ length: STAGES }, (_, i) => bestStars(sessions, who, game, i + 1)).reduce((a, b) => a + b, 0), 0);
+  Object.keys(STARS).reduce((sum, game) => sum + Array.from({ length: STAGES }, (_, i) => Object.hasOwn(FAMILY_GAMES, game)
+    ? Math.max(bestStars(sessions, who, game, i + 1), bestStars(sessions, who, game, i + 1, 'team'))
+    : bestStars(sessions, who, game, i + 1)).reduce((a, b) => a + b, 0), 0);
 
 // XP: moving pays, stars pay, harder stages pay, beating yourself pays.
 export const sessionXp = (s: { points: number; stars: number; stage: number; newBest: boolean }) =>
@@ -52,7 +57,10 @@ const dayOf = (t: number) => new Date(t).toLocaleDateString('en-CA');
 type Ctx = { all: Session[]; who: string; games: Session[]; now: number };
 export const BADGES: { id: string; name: string; how: string; test: (c: Ctx) => boolean }[] = [
   { id: 'first', name: 'First steps', how: 'Finish your first game', test: (c) => c.games.length >= 1 },
-  { id: 'explorer', name: 'Explorer', how: 'Play every game once', test: (c) => Object.keys(STARS).every((g) => c.games.some((s) => s.game === g)) },
+  { id: 'explorer', name: 'Explorer', how: 'Play every motion game or every Family Adventure', test: (c) => {
+    const played = new Set(c.games.map((s) => s.game));
+    return motionGameIds.every((id) => played.has(id)) || FAMILY_IDS.every((id) => played.has(id));
+  } },
   { id: 'century', name: 'Century', how: 'Earn 100 activity points in a day', test: (c) => summary(c.all, c.who, c.now).today >= 100 },
   { id: 'double', name: 'Double century', how: 'Earn 200 activity points in a day', test: (c) => summary(c.all, c.who, c.now).today >= 200 },
   { id: 'streak3', name: 'Habit forming', how: `Hit ${DAY_GOAL} points 3 days running`, test: (c) => summary(c.all, c.who, c.now).streak >= 3 },
@@ -62,7 +70,9 @@ export const BADGES: { id: string; name: string; how: string; test: (c: Ctx) => 
   { id: 'stars20', name: 'Constellation', how: 'Collect 20 stars', test: (c) => totalStars(c.all, c.who) >= 20 },
   { id: 'stars30', name: 'Galaxy', how: 'Collect 30 stars', test: (c) => totalStars(c.all, c.who) >= 30 },
   { id: 'flawless', name: 'Flawless', how: 'Three stars on stage 3 or higher', test: (c) => c.games.some((s) => (s.stars ?? 0) === 3 && (s.stage ?? 1) >= 3) },
-  { id: 'summit', name: 'Summit', how: 'Reach stage 5 in any game', test: (c) => Object.keys(STARS).some((g) => unlockedStage(c.all, c.who, g) >= STAGES) },
+  { id: 'summit', name: 'Summit', how: 'Reach stage 5 in any game', test: (c) =>
+    Object.keys(STARS).some((g) => unlockedStage(c.all, c.who, g) >= STAGES) ||
+    FAMILY_IDS.some((g) => unlockedStage(c.all, c.who, g, 'team') >= STAGES) },
   { id: 'five', name: 'Five a day', how: 'Play 5 games in one day', test: (c) => c.games.filter((s) => dayOf(s.t) === dayOf(c.now)).length >= 5 },
   { id: 'level5', name: 'Warmed up', how: 'Reach level 5', test: (c) => levelOf(xpOf(c.all, c.who)).level >= 5 },
   { id: 'level10', name: 'In shape', how: 'Reach level 10', test: (c) => levelOf(xpOf(c.all, c.who)).level >= 10 },

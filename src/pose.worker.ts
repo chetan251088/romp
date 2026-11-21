@@ -178,12 +178,13 @@ self.onmessage = async (e: MessageEvent) => {
       ...(delegate === 'GPU' ? { canvas: new OffscreenCanvas(1, 1) } : {}),
     }))).v;
     half = { seat: m.seat, x0: m.x0, w: m.w };
-  } else if (m.type === 'idle') idle = m.on;
+  } else if (m.type === 'idle') { idle = m.on; if (idle) gripRect = null; }
   else if (m.type === 'relook') relook = true;
   else if (m.type === 'cut') { if (gpu && wantCut !== m.on) { wantCut = m.on; await landmarker?.setOptions({ outputSegmentationMasks: m.on }); } }
   else if (m.type === 'stream') void pump(m.readable);
   else if (m.type === 'grip') gripRect = m.rect;
   else if (m.type === 'frame' && landmarker) {
+    if (idle) { m.bitmap.close(); postMessage({ type: 'pose', skipped: true }); return; }
     const t0 = performance.now(), landmarks = landmarker.detectForVideo(m.bitmap, m.t).landmarks;
     m.bitmap.close();
     postMessage({ type: 'pose', landmarks, t: m.t, ms: performance.now() - t0 });
